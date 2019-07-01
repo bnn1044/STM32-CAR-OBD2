@@ -17,7 +17,14 @@ Things to know:
 //#include "Fonts\FreeSans9pt7b.h"
 //#include "Fonts\DSEG7_Modern_Bold_48.h"
 #include "Fonts\Dialog_plain_25.h"
-#include "ELM327_PID.h"
+#include "OBD.h"
+
+String displayName[]{
+  // 0       1         2         3       4         5        6       7      8      9
+  "Boost","Coolant","AirTemp","Igntn","EgTemp","Throttle","Speed","0-60","Batt","Afr"
+};
+
+COBD obd;
 /* 
  *  declare OLED display
  */
@@ -40,6 +47,9 @@ String WorkingString;
 
 long DisplayValue;
 long preview_time;
+long startTime0_60;
+long stopTime0_60;
+int  time0_60_ms;
 
 boolean obd_connected;
 boolean button_pressed;
@@ -60,42 +70,21 @@ float engine_boost;
 int RPM;
 
 void setup(){         
-         
   Serial.begin(38400);
-  Serial2.begin(38400);
-  display_top.begin(SSD1306_SWITCHCAPVCC, 0x3c);  // initialize with the I2C addr 0x3C  first LED
-  display_bottom.begin(SSD1306_SWITCHCAPVCC, 0x3c);
-  display_top.display();
-  display_bottom.display();
-  
-  delay(1000);
-  display_top.clearDisplay();
-  display_bottom.clearDisplay();
-  displayTopString("Rsting");
-  obd_connected = false;
-  delay(1000);
-  init_obd2();
-  while(not obd_connected){
-    Serial.println("connecting");
-  }
-  displayTopString("Ready");
-  
-  ButtonUp.begin();
-  ButtonEnter.begin();
-  ButtonDown.begin();
-  
-  pinMode(PB12,INPUT_PULLUP);  
-  pinMode(PB13,INPUT_PULLUP);  
-  pinMode(PB14,INPUT_PULLUP);  
-  
-  displayBottomBigNumber(123);
+  obd.begin();
+ 
+  DisplayInit();
+  //displayTopString("Initialize OBD");
+  while (!obd.init()); 
+  obd_connected = true;
+   ("Ready");
+  initButton();
   pinMode(PC13, OUTPUT);
-  
-  menu_ID = 0;
-  
+  menu_ID = 1;
+  displayTopString(displayName[menu_ID]);
 }
 void loop(){
-  
+
   if (ButtonUp.pressed()){
     Serial.println(menu_ID);   
     menu_ID =menu_ID + 1;
@@ -115,61 +104,77 @@ void loop(){
     refresh_display = true;
     preview_time = millis();
   }
-  if ( ( millis() - preview_time ) > 5000 ){
+  if ( ( ( millis() - preview_time ) > 5000 )&&( button_pressed ) ){
        button_pressed = false;
-       Serial.println(button_pressed);
-       BuildINString = ReadDataWithPid("010C");
+       Serial.println("Button cycle done");
   }
   if( ( button_pressed )&& ( refresh_display )) {  
      Serial.println(menu_ID);  
-     displayTopString( PID_NAME_SHORT[menu_ID] );
+     displayTopString(displayName[menu_ID]);
      refresh_display = false;
  }
+
+ /*
+  *  0       1         2         3       4         5        6       7      8      9
+  *"Boost","Coolant","AirTemp","Igntn","EgTemp","Throttle","Speed","0-60","Batt","Afr"
+  */
+ int tempReading;
  if ( ( obd_connected )&&( !button_pressed ) ){
   if ( millis() - preview_time > 200 ){
-      BuildINString = ReadDataWithPid("010C");
-      Serial.print("len:");
-      Serial.println(BuildINString.length());
-      Serial.print("BuildINString :");
-      Serial.println(BuildINString);
-      //WorkingString = BuildINString.substring(4,6);                  //Read coolant 410534410534 >0105 ---lenth 27;
-      WorkingString = BuildINString.substring(4,8);                    //BuildINString :410C0B64 410C0B64>010C
-      Serial.print("WorkingString :");
-      Serial.println(WorkingString);
-      //engine_coolant = strtol(WorkingString.c_str(),NULL,16) - 40;   //convert hex to decimnal
-      engine_rpm = (strtol(WorkingString.c_str(),NULL,16))/4;
-      displayTopBigNumber(engine_rpm);
-      preview_time = millis();
+     switch (menu_ID) {
+           case 0:                                      //READ BOOST
+                obd.read(PID_INTAKE_MAP,tempReading );
+                displayBottomBigFloatNumber(float(tempReading/100));
+                break;
+           case 1:                                      //READ coolant
+                obd.read(PID_COOLANT_TEMP,tempReading );
+                displayBottomBigNumber(tempReading);
+                break;
+           case 2:                                      //READ AirTemp
+                obd.read(PID_INTAKE_TEMP,tempReading );
+                displayBottomBigNumber(tempReading);
+                break;
+           case 3:                                      //READ Igntn
+                obd.read(PID_TIMING_ADVANCE,tempReading );
+                displayBottomBigNumber(tempReading);
+                break;
+           case 4:                                      //READ EgTemp
+                obd.read(PID_INTAKE_TEMP,tempReading );
+                displayBottomBigNumber(tempReading);            
+                break;
+           case 5:                                      //READ Throttle
+                obd.read(PID_THROTTLE,tempReading );
+                displayBottomBigNumber(tempReading);   
+                break;
+           case 6:                                      //READ Speed
+                obd.read(PID_SPEED,tempReading );
+                displayBottomBigNumber(tempReading);  
+                break;
+           case 7:                                      //0-60
+                obd.read(PID_SPEED,tempReading );
+                displayBottomBigNumber(tempReading);  
+                if( ( tempReading > 0 ) && (startTime0_60 ==0 ) ){
+                  startTime0_60 = millis();
+                }
+                // display the time when speed started
+                if( ( tempReading < 60 )&&(tempReading > 0 ) ) {
+                  time0_60_ms = millis()- startTime0_60;
+                }
+                displayTopBigNumber(time0_60_ms);
+                break;
+           case 8:                                      //Batt
+                obd.read(PID_CONTROL_MODULE_VOLTAGE,tempReading );
+                displayBottomBigNumber(tempReading);  
+                break;
+           case 9:                                      //Afr
+                obd.read(PID_ENGINE_LOAD,tempReading );
+                displayBottomBigNumber(tempReading);           
+                break;
+     }
    }
   }
 }
-void displayBottomBigNumber(long dispaly_temp_number){
-  display_bottom.clearDisplay();
-  display_bottom.setFont(&DSEG14_Modern_Regular_32);
-  display_bottom.setTextColor(WHITE);
-  display_bottom.setTextSize(1);
-  display_bottom.setCursor(0,32);
-  display_bottom.println(dispaly_temp_number);
-  display_bottom.display();
-}
-void displayTopBigNumber(long dispaly_temp_number){
-  display_top.clearDisplay();
-  display_top.setFont(&DSEG14_Modern_Regular_32);
-  display_top.setTextColor(WHITE);
-  display_top.setTextSize(1);
-  display_top.setCursor(0,32);
-  display_top.println(dispaly_temp_number);
-  display_top.display();
-}
-void displayTopString(String disstring){
-  //int len = disstring.length();
-  display_top.clearDisplay();
-  display_top.setFont(&Dialog_plain_25);
-  display_top.setTextColor( WHITE );
-  display_top.setCursor(0,25);
-  display_top.println( disstring );
-  display_top.display();
-}
+
 //Read Data Function ***********************************************************
 String ReadDataWithPid(String pid)
 {
@@ -217,6 +222,14 @@ void init_obd2(){
   }
   obd_connected = true;
 }
+void initButton(){
+  pinMode(PB12,INPUT_PULLUP);  
+  pinMode(PB13,INPUT_PULLUP);  
+  pinMode(PB14,INPUT_PULLUP);  
+  ButtonUp.begin();
+  ButtonEnter.begin();
+  ButtonDown.begin();
+}
 /*void dispalyCoolant(){
       BuildINString = ReadDataWithPid(EngineCoolant);
       Serial.print("len: ");
@@ -235,7 +248,7 @@ void displayRPM(){
       Serial.println(BuildINString.length());
       Serial.print("BuildINString : ");
       Serial.println(BuildINString);
-      WorkingString = BuildINString.substring(4,8);                    //BuildINString :410C0B64 410C0B64>010C
+      WorkingString = BuildINString.substring(4,8);                    //BuildINString :410C0B64 410C0B64 >010C
       Serial.print("WorkingString : ");
       Serial.println(WorkingString);
       engine_rpm = (strtol(WorkingString.c_str(),NULL,16))/4;          //convert hex to decimnal
