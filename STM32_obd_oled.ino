@@ -11,11 +11,6 @@ Things to know:
 #include "Adafruit_SSD1306.h"
 #include <Button.h>
 #include "Fonts\DSEG14_Modern_Regular_32.h"
-//#include "Fonts\DSEG14_Modern_Mini_Regular_16.h"
-//#include "Fonts\DSEG7_Classic_Bold_8.h"
-//#include "Fonts\DSEG7_Modern_Regular_32.h"
-//#include "Fonts\FreeSans9pt7b.h"
-//#include "Fonts\DSEG7_Modern_Bold_48.h"
 #include "Fonts\Dialog_plain_25.h"
 #include "OBD.h"
 
@@ -60,9 +55,11 @@ int menu_ID = 0;
 Button ButtonUp(PB12); // Connect your button between pin 2 and GND
 Button ButtonEnter(PB13); // Connect your button between pin 2 and GND
 Button ButtonDown(PB14); // Connect your button between pin 2 and GND
+
 /*
  *define engine variable 
  */
+ 
 float engine_coolant;
 float engine_rpm;
 float engine_ita;
@@ -113,7 +110,7 @@ void loop(){
      displayTopString(displayName[menu_ID]);
      refresh_display = false;
  }
-
+ 
  /*
   *  0       1         2         3       4         5        6       7      8      9
   *"Boost","Coolant","AirTemp","Igntn","EgTemp","Throttle","Speed","0-60","Batt","Afr"
@@ -153,7 +150,7 @@ void loop(){
            case 7:                                      //0-60
                 obd.read(PID_SPEED,tempReading );
                 displayBottomBigNumber(tempReading);  
-                if( ( tempReading > 0 ) && (startTime0_60 ==0 ) ){
+                if( ( tempReading > 0 ) && (startTime0_60 == 0 ) ){
                   startTime0_60 = millis();
                 }
                 // display the time when speed started

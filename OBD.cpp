@@ -203,9 +203,9 @@ int COBD::normalizeData(byte pid, char* data)
   case PID_INTAKE_MAP:
     temResult = getSmallValue(data);
     if( temResult < 100 ){
-       result = int( ( (  getSmallValue( data )-100 )-100 )*100/6.895 );
+       result = int( ( (  float(getSmallValue( data ))-100.0 )-100.0 )*100.0 /6.895 );
     }else if(temResult >=100 ){
-       result = int( ( getSmallValue( data ) -100 )*100 / 6.895 );
+       result = int( ( float( getSmallValue( data )) -100.0 )*100.0 / 6.895 );
     }
     break;
 	default:

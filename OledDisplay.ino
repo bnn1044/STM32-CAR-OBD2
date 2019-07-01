@@ -24,7 +24,11 @@ void displayBottomBigFloatNumber(float dispaly_temp_number){
   display_bottom.setTextColor(WHITE);
   
   display_bottom.setTextSize(1);
-  display_bottom.setCursor(0,32);
+  if(dispaly_temp_number > 0){
+    display_bottom.setCursor(8,32);   
+  }else{
+    display_bottom.setCursor(0,32);
+  }
   display_bottom.println(dispaly_temp_number,1);
   display_bottom.display();
 }
@@ -46,4 +50,7 @@ void displayTopString(String disstring){
   display_top.setCursor(0,25);
   display_top.println( disstring );
   display_top.display();
+}
+void drawBoxTopScreen(){
+  
 }
