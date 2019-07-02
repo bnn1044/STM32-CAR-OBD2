@@ -126,7 +126,7 @@ void COBD::write(char c)
 
 int COBD::normalizeData(byte pid, char* data)
 {
-	int result;
+  int result;
  int temResult;
 	switch (pid) {
 	case PID_RPM:
@@ -202,11 +202,13 @@ int COBD::normalizeData(byte pid, char* data)
 		break;
   case PID_INTAKE_MAP:
     temResult = getSmallValue(data);
-    if( temResult < 100 ){
+    result = ( float( temResult ) * 0.14503 - 14.503 )*100.0;
+    
+    /*if( temResult < 100 ){
        result = int( ( (  float(getSmallValue( data ))-100.0 )-100.0 )*100.0 /6.895 );
     }else if(temResult >=100 ){
        result = int( ( float( getSmallValue( data )) -100.0 )*100.0 / 6.895 );
-    }
+    }*/
     break;
 	default:
 		result = getSmallValue(data);
