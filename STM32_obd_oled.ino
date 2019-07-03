@@ -20,8 +20,8 @@ String displayName[]{
 };
 COBD obd;
 
-#define ButtonUpdateRate_timer2  20     //in mills
-HardwareTimer timer(2);
+#define ButtonUpdateRate_timer2  5     //in mills
+//HardwareTimer timer(2);
 /* 
  *  declare OLED display
  */
@@ -49,10 +49,14 @@ int  time0_60_ms;
 boolean obd_connected;
 boolean button_pressed;
 boolean refresh_display;
-boolean LED_flash;
+boolean readPid;
+int LED_flash = 0;
 
 int menu_ID = 0;
 #define Led_pin  PC13
+
+void Timer3_handler(void);
+void Timer4_handler(void);
 
 Button ButtonUp(PB12); // Connect your button between pin 2 and GND
 Button ButtonEnter(PB13); // Connect your button between pin 2 and GND
@@ -60,25 +64,26 @@ Button ButtonDown(PB14); // Connect your button between pin 2 and GND
 
 void setup(){         
   Serial.begin(38400);
+  initButton();
   obd.begin();
   DisplayInit();
-  while (!obd.init()); 
+  while (!obd.init());
   obd_connected = true;
-  initButton();
+
   pinMode(Led_pin, OUTPUT);
   digitalWrite(Led_pin, HIGH);
   
-  /*SetupTimer2();
-  SetupTimer3();
-  SetupTimer4();*/
+  SetupTimer2();
+  //SetupTimer3_4();
+  //SetupTimer3();
+  //SetupTimer4();
   
   menu_ID = 1;
   displayTopString(displayName[menu_ID]);
   //SetupTimer2();
 }
 void loop(){
- processButton_timer2();
- processPid();
+  processPid();
 }
 /*
  * Process button press and menu
@@ -102,13 +107,14 @@ void processButton_timer2(){
     refresh_display = true;
     preview_time = millis();
   }
-  if ( ( ( millis() - preview_time ) > 1000 )&&( button_pressed ) ){
+  if ( ( ( millis() - preview_time ) > 500 )&&( button_pressed ) ){
        button_pressed = false;
   }
   if( ( button_pressed )&& ( refresh_display )) {  
      displayTopString(displayName[menu_ID]);
      refresh_display = false;
  }
+
 }
  /*
   *  0       1         2         3       4         5        6       7      8      9
@@ -118,7 +124,7 @@ void processButton_timer2(){
 void processPid(){
   int tempReading;
  if ( ( obd_connected )&&( !button_pressed ) ){
-  if ( millis() - preview_time > 200 ){
+    if ( millis() - preview_time > 200 ){
      switch (menu_ID) {
       case 0:                                      //READ BOOST
         obd.read(PID_INTAKE_MAP,tempReading );
@@ -150,11 +156,12 @@ void processPid(){
         break;
       case 6:                                      //READ Speed
         obd.read(PID_SPEED,tempReading );
+        tempReading = ( float(tempReading) * 100.0 /0.621371 )/ 100.0 ;
         displayBottomBigNumber(tempReading);  
         break;
       case 7:                                      //0-60
         obd.read(PID_SPEED,tempReading );
-        tempReading = ( tempReading * 100.0 /0.621371 )/ 100.0 ;
+        tempReading = ( float(tempReading) * 100.0 /0.621371 )/ 100.0 ;
         displayBottomBigNumber(tempReading);  
         if( ( tempReading > 0 ) && (startTime0_60 == 0 ) ){
             startTime0_60 = millis();
@@ -174,7 +181,7 @@ void processPid(){
         displayBottomBigNumber(tempReading);           
         break;
      }
-   }
+    }
   }
 }
 
@@ -237,10 +244,11 @@ void initButton(){
  * Set up every 200ms for process the PID
  */
 void Timer3_handler(){
-  processPid();
+  //processPid();
+  readPid = true;
 }
 void Timer4_handler(){
-    LED_flash = ~LED_flash;
+    LED_flash =~LED_flash ;
     digitalWrite(Led_pin, LED_flash);
 }
 /*
@@ -249,96 +257,26 @@ void Timer4_handler(){
  */
 void SetupTimer2(){
     // Pause the timer while we're configuring it
-    timer.pause();
-    // Set up period
-    timer.setPeriod(ButtonUpdateRate_timer2); // in microseconds
-    // Set up an interrupt on channel 1
-    timer.setChannel1Mode(TIMER_OUTPUT_COMPARE);
-    timer.setCompare(TIMER_CH1, 1);  // Interrupt 1 count after each update
-    timer.attachCompare1Interrupt(processButton_timer2);
-    //Refresh the timer's count, prescale, and overflow
-    timer.refresh();
-    //Start the timer counting
-    timer.resume();
+    Timer2.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
+    Timer2.setPeriod(ButtonUpdateRate_timer2); // in microseconds
+    Timer2.setCompare(TIMER_CH1, 1);      // overflow might be small
+    Timer2.attachInterrupt(TIMER_CH1, processButton_timer2);
 }
-void SetupTimer3(){
-    // Setup Counting Timers
-    Timer3.pause();
+void SetupTimer3_4(){
+        // Setup Counting Timers
     Timer3.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
-    Timer3.setPrescaleFactor(3600);     //72000000 / 3600 = 2000hz,  500us
-    Timer3.setCount(0);
-    Timer3.setOverflow(30000);
-    Timer3.setCompare(TIMER_CH1, 400);   // set for 200 ms
-    Timer3.attachInterrupt(TIMER_CH1, Timer3_handler);    
-    Timer3.refresh();
-    Timer3.resume();
-    
-}
-void SetupTimer4(){
-  
-    Timer4.pause(); 
-    Timer4.setPrescaleFactor(3600);     //72000000 / 3600 = 2000hz,  500us
     Timer4.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
+    Timer3.pause();
+    Timer4.pause();
+    Timer3.setCount(0);
     Timer4.setCount(0);
+    Timer3.setOverflow(30000);
     Timer4.setOverflow(30000);
-    Timer4.setCompare(TIMER_CH1, 1000);   
+    Timer3.setCompare(TIMER_CH1, 200);   // somewhere in the middle
+    Timer4.setCompare(TIMER_CH1, 500);   
+    Timer3.attachInterrupt(TIMER_CH1, Timer3_handler);
     Timer4.attachInterrupt(TIMER_CH1, Timer4_handler);
-    Timer3.refresh();
+    Timer3.resume();
     Timer4.resume();
     
 }
-/*void dispalyCoolant(){
-      BuildINString = ReadDataWithPid(EngineCoolant);
-      Serial.print("len: ");
-      Serial.println(BuildINString.length());
-      Serial.print("BuildINString :");
-      Serial.println(BuildINString);
-      WorkingString = BuildINString.substring(4,6);                    //410534410534;
-      Serial.print("WorkingString :");
-      Serial.println(WorkingString);
-      engine_coolant = strtol(WorkingString.c_str(),NULL,16) - 40;     //convert hex to decimnal
-      displayBigNumber(engine_coolant,"C");      
-}
-void displayRPM(){
-      BuildINString = ReadDataWithPid(EngineRPM);                      //RPM
-      Serial.print("len: ");
-      Serial.println(BuildINString.length());
-      Serial.print("BuildINString : ");
-      Serial.println(BuildINString);
-      WorkingString = BuildINString.substring(4,8);                    //BuildINString :410C0B64 410C0B64 >010C
-      Serial.print("WorkingString : ");
-      Serial.println(WorkingString);
-      engine_rpm = (strtol(WorkingString.c_str(),NULL,16))/4;          //convert hex to decimnal
-      displayBigNumber(engine_rpm," ");      
-}
-void display_boost(){
-      BuildINString = ReadDataWithPid(BoostPressureControl);           //BOOST  00C
-                                                                                0:41 70 12 00 00 04
-                                                                                         A  B  C  D
-                                                                                1:5A 00 00 04 53 00 AA>
-                                                                                   E   F  G  H  I  J
-                                                                                00C
-                                                                                0:417012000004
-                                                                                1:660000046100 AA>
-      Serial.print("len: ");
-      Serial.println(BuildINString.length());
-      Serial.print("BuildINString : ");
-      Serial.println(BuildINString);
-      WorkingString = BuildINString.substring(6,8);                    //BuildINString : 00C 0: 41 70 12 00 00 04 1: A5 00 00 04 A1 00 AA >0170
-      Serial.print("WorkingString : ");
-      Serial.println(WorkingString);
-      engine_boost = strtol(WorkingString.c_str(),NULL,16) - 40;       //convert hex to decimnal
-      displayBigNumber(engine_boost,"PSI");      
-}
-void display_airintake_temp(){
-      BuildINString = ReadDataWithPid(ChargeAirCoolerTemperature);     //intake temp
-      Serial.print("len: ");
-      Serial.println(BuildINString.length());
-      Serial.print("BuildINString : ");
-      Serial.println(BuildINString);
-      WorkingString = BuildINString.substring(6,8);                    
-      Serial.print("WorkingString : ");
-      Serial.println(WorkingString);
-      engine_ita = strtol(WorkingString.c_str(),NULL,16) - 40;         //convert hex to decimnal
-      displayBigNumber(engine_ita,"C"); 
-}*/
