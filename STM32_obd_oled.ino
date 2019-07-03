@@ -20,8 +20,8 @@ String displayName[]{
 };
 COBD obd;
 
-#define ButtonUpdateRate_timer2  100    //in mills
-//HardwareTimer timer(2);
+#define ButtonUpdateRate_timer2  50000    //in mills
+#define Led_pin  PC13           
 /* 
  *  declare OLED display
  */
@@ -45,6 +45,7 @@ long preview_time;
 long startTime0_60;
 long stopTime0_60;
 int  time0_60_ms;
+int Previewmilles;
 
 boolean obd_connected;
 boolean button_pressed;
@@ -53,7 +54,6 @@ boolean readPid;
 int LED_flash = 0;
 
 int menu_ID = 0;
-#define Led_pin  PC13
 
 void Timer3_handler(void);
 void Timer4_handler(void);
@@ -64,43 +64,38 @@ Button ButtonDown(PB14); // Connect your button between pin 2 and GND
 
 void setup(){         
   Serial.begin(38400);
+  //while(!Serial);
   initButton();
   obd.begin();
   DisplayInit();
   while (!obd.init());
   obd_connected = true;
-
   pinMode(Led_pin, OUTPUT);
   digitalWrite(Led_pin, HIGH);
-  
   SetupTimer2();
- // SetupTimer3();
-
-  
+  SetupTimer3();
   menu_ID = 1;
   displayTopString(displayName[menu_ID]);
-  //SetupTimer2();
 }
+int testPsi = -30;
 void loop(){
-  /*if( ( readPid )&&( button_pressed ==0 ) ){
+  if ( readPid ){
     processPid();
     readPid = false;
-    Serial.println(millis());
-  }*/
-   processPid();
+    Timer3.resume();
+  }
 }
 /*
  * Process button press and menu
  */
-void processButton_timer2(){
+void processButton_timer2(void){
     if (ButtonUp.pressed()){  
-    menu_ID =menu_ID + 1;
-    if ( menu_ID > 9 ){
-      menu_ID = 0;
-    }
-    button_pressed = true;
-    refresh_display = true;
-    preview_time = millis();
+      menu_ID =menu_ID + 1;
+      if ( menu_ID > 9 ){
+        menu_ID = 0;
+      }
+      button_pressed = true;
+      refresh_display = true;
   }
   if (ButtonDown.pressed()){ 
     menu_ID =menu_ID-1;
@@ -109,16 +104,12 @@ void processButton_timer2(){
     }
     button_pressed = true; 
     refresh_display = true;
-    preview_time = millis();
-  }
-  if ( ( ( millis() - preview_time ) > 250 )&&( button_pressed ) ){
-       button_pressed = false;
   }
   if( ( button_pressed )&& ( refresh_display )) {  
      displayTopString(displayName[menu_ID]);
      refresh_display = false;
+     button_pressed = false;
  }
-
 }
  /*
   *  0       1         2         3       4         5        6       7      8      9
@@ -126,17 +117,20 @@ void processButton_timer2(){
   *read PID every 200ms
   */
 void processPid(){
-  int tempReading;
- if ( ( obd_connected )&&( !button_pressed ) ){   
-  if ( millis() - preview_time > 200 ){
+ int tempReading;
+ int psi;
+ if ( obd_connected ){   
      switch (menu_ID) {
       case 0:                                      //READ BOOST
         obd.read(PID_INTAKE_MAP,tempReading );
         if ( tempReading >= 0 ){
-            displayBottomBigFloatNumber(float(tempReading/100.0));            // display PSI
+            psi = float(tempReading/100.0);
+            //displayBottomBigFloatNumber(psi);            // display PSI
         }else{
-            displayBottomBigFloatNumber(float( ( tempReading*2.036 )/100.0)); // converted to Hg
+            psi = float( ( tempReading*2.036 )/100.0);
         }
+        displayBottomBigFloatNumber( psi ); // converted to Hg
+        drawBoostBarOnTopDisplay( psi );
         break;
       case 1:                                      //READ coolant
         obd.read(PID_COOLANT_TEMP,tempReading );
@@ -160,12 +154,12 @@ void processPid(){
         break;
       case 6:                                      //READ Speed
         obd.read(PID_SPEED,tempReading );
-        tempReading = ( float(tempReading) * 100.0 /0.621371 )/ 100.0 ;
+        tempReading = ( float(tempReading) *62.1371 )/ 100.0 ;
         displayBottomBigNumber(tempReading);  
         break;
       case 7:                                      //0-60
         obd.read(PID_SPEED,tempReading );
-        tempReading = ( float(tempReading) * 100.0 /0.621371 )/ 100.0 ;
+        tempReading = ( float(tempReading) *62.1371 )/ 100.0 ;
         displayBottomBigNumber(tempReading);  
         if( ( tempReading > 0 ) && (startTime0_60 == 0 ) ){
             startTime0_60 = millis();
@@ -186,24 +180,8 @@ void processPid(){
         break;
      }
    }
-  }
-}
-
-//Read Data Function ***********************************************************
-String ReadDataWithPid(String pid)
-{
-  Serial2.println(pid);                   // Send Coolant PID request 0105
-  Serial2.flush();                        // Not sure if it's needed*********************************************
-  String TempBuildINString="";  
-  while(Serial2.available() > 0)
-  {
-    inData=0;
-    inChar=0;
-    inData = Serial2.read();
-    inChar=char(inData);
-    TempBuildINString = TempBuildINString + inChar;
-  }
-  return TempBuildINString;
+ // Serial.println(psi);
+  Serial.println( millis());
 }
 void init_obd2(){
   Serial.println("Sending ATZ");
@@ -248,12 +226,8 @@ void initButton(){
  * Set up every 200ms for process the PID
  */
 void Timer3_handler(void){
-  //processPid();
+  Timer3.pause();
   readPid = true;
-}
-void Timer4_handler(void){
-    //LED_flash ^=1 ;
-    digitalWrite(Led_pin, ~LED_flash);
 }
 /*
  * Set up Timer 2 as Button update timer
@@ -261,18 +235,21 @@ void Timer4_handler(void){
  */
 void SetupTimer2(){
     // Pause the timer while we're configuring it
+    Timer2.pause();
     Timer2.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
     Timer2.setPeriod(ButtonUpdateRate_timer2); // in microseconds
     Timer2.setCompare(TIMER_CH1, 1);      // overflow might be small
+    Timer2.refresh();
     Timer2.attachInterrupt(TIMER_CH1, processButton_timer2);
+    Timer2.resume();
 }
 void SetupTimer3(){
+  Timer3.pause();
+  Timer3.setMode(TIMER_CH1,TIMER_OUTPUT_COMPARE);
+  Timer3.setPeriod(200000);                       // in microSecond
+  Timer3.refresh();
+  Timer3.setCompare(TIMER_CH1, 1);      // overflow might be small
+  Timer3.attachInterrupt(TIMER_CH1,Timer3_handler);
+  Timer3.resume();
 
-  Timer3.setChannel1Mode(TIMER_OUTPUT_COMPARE);
-  Timer3.setPeriod(2);
-  Timer3.setCompare1(1);
-  Timer3.attachCompare1Interrupt(Timer3_handler);
-  //Timer3.refresh();
-  //Timer3.resume();
-    
 }

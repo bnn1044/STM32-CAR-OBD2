@@ -51,6 +51,16 @@ void displayTopString(String disstring){
   display_top.println( disstring );
   display_top.display();
 }
-void drawBoxTopScreen(){
-  
+void drawBoostBarOnTopDisplay(int psi){
+  int rectangleWith;
+  display_top.clearDisplay();
+  if( psi >= 0 ){
+     rectangleWith = map(psi,0.0,20.0,0,96);
+     //fillRect(uint16_t x0, uint16_t y0, uint16_t w, uint16_t h, uint16_t color);
+     display_top.fillRect(32,0,rectangleWith,25,1);  
+  }else {
+    rectangleWith = map(psi,-30.0,0.0,0,32);
+    display_top.fillRect(rectangleWith,0,32-rectangleWith,25,1);  
+  }
+  display_top.display();
 }
