@@ -20,7 +20,7 @@ String displayName[]{
 };
 COBD obd;
 
-#define ButtonUpdateRate_timer2  5     //in mills
+#define ButtonUpdateRate_timer2  100    //in mills
 //HardwareTimer timer(2);
 /* 
  *  declare OLED display
@@ -74,16 +74,20 @@ void setup(){
   digitalWrite(Led_pin, HIGH);
   
   SetupTimer2();
-  //SetupTimer3_4();
-  //SetupTimer3();
-  //SetupTimer4();
+ // SetupTimer3();
+
   
   menu_ID = 1;
   displayTopString(displayName[menu_ID]);
   //SetupTimer2();
 }
 void loop(){
-  processPid();
+  /*if( ( readPid )&&( button_pressed ==0 ) ){
+    processPid();
+    readPid = false;
+    Serial.println(millis());
+  }*/
+   processPid();
 }
 /*
  * Process button press and menu
@@ -107,7 +111,7 @@ void processButton_timer2(){
     refresh_display = true;
     preview_time = millis();
   }
-  if ( ( ( millis() - preview_time ) > 500 )&&( button_pressed ) ){
+  if ( ( ( millis() - preview_time ) > 250 )&&( button_pressed ) ){
        button_pressed = false;
   }
   if( ( button_pressed )&& ( refresh_display )) {  
@@ -123,8 +127,8 @@ void processButton_timer2(){
   */
 void processPid(){
   int tempReading;
- if ( ( obd_connected )&&( !button_pressed ) ){
-    if ( millis() - preview_time > 200 ){
+ if ( ( obd_connected )&&( !button_pressed ) ){   
+  if ( millis() - preview_time > 200 ){
      switch (menu_ID) {
       case 0:                                      //READ BOOST
         obd.read(PID_INTAKE_MAP,tempReading );
@@ -181,7 +185,7 @@ void processPid(){
         displayBottomBigNumber(tempReading);           
         break;
      }
-    }
+   }
   }
 }
 
@@ -243,13 +247,13 @@ void initButton(){
 /*
  * Set up every 200ms for process the PID
  */
-void Timer3_handler(){
+void Timer3_handler(void){
   //processPid();
   readPid = true;
 }
-void Timer4_handler(){
-    LED_flash =~LED_flash ;
-    digitalWrite(Led_pin, LED_flash);
+void Timer4_handler(void){
+    //LED_flash ^=1 ;
+    digitalWrite(Led_pin, ~LED_flash);
 }
 /*
  * Set up Timer 2 as Button update timer
@@ -262,21 +266,13 @@ void SetupTimer2(){
     Timer2.setCompare(TIMER_CH1, 1);      // overflow might be small
     Timer2.attachInterrupt(TIMER_CH1, processButton_timer2);
 }
-void SetupTimer3_4(){
-        // Setup Counting Timers
-    Timer3.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
-    Timer4.setMode(TIMER_CH1, TIMER_OUTPUTCOMPARE);
-    Timer3.pause();
-    Timer4.pause();
-    Timer3.setCount(0);
-    Timer4.setCount(0);
-    Timer3.setOverflow(30000);
-    Timer4.setOverflow(30000);
-    Timer3.setCompare(TIMER_CH1, 200);   // somewhere in the middle
-    Timer4.setCompare(TIMER_CH1, 500);   
-    Timer3.attachInterrupt(TIMER_CH1, Timer3_handler);
-    Timer4.attachInterrupt(TIMER_CH1, Timer4_handler);
-    Timer3.resume();
-    Timer4.resume();
+void SetupTimer3(){
+
+  Timer3.setChannel1Mode(TIMER_OUTPUT_COMPARE);
+  Timer3.setPeriod(2);
+  Timer3.setCompare1(1);
+  Timer3.attachCompare1Interrupt(Timer3_handler);
+  //Timer3.refresh();
+  //Timer3.resume();
     
 }
